@@ -39,3 +39,30 @@ export const reviewReport = async (id, reviewData) => {
   const { data } = await api.patch(`/cmo/reports/${id}/review/`, reviewData);
   return data;
 };
+
+// Officer Management API
+export const getOfficers = async (params = {}) => {
+  const { data } = await api.get('/cmo/officers/', { params });
+  return data;
+};
+
+export const getOfficerDetail = async (id) => {
+  const { data } = await api.get(`/cmo/officers/${id}/`);
+  return data;
+};
+
+export const createOfficer = async (officerData) => {
+  const { data } = await api.post('/cmo/officers/', officerData);
+  return data;
+};
+
+export const updateOfficer = async (id, officerData) => {
+  const { data } = await api.patch(`/cmo/officers/${id}/`, officerData);
+  return data;
+};
+
+export const toggleOfficerStatus = async (id) => {
+  const { data } = await api.post(`/cmo/officers/${id}/toggle-status/`);
+  return data;
+};
+

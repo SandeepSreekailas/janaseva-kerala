@@ -57,6 +57,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         related_name='officers',
         verbose_name=_('assigned department')
     )
+    designation = models.CharField(_('designation'), max_length=150, blank=True, default='')
+    employee_id = models.CharField(_('employee ID'), max_length=50, blank=True, default='')
+    address = models.TextField(_('address'), blank=True, default='')
     is_active = models.BooleanField(_('active'), default=True)
     is_staff = models.BooleanField(_('staff status'), default=False)
     created_at = models.DateTimeField(_('created at'), auto_now_add=True)

@@ -4,6 +4,8 @@ Provides API endpoints for user registration, authentication, token management,
 profile inspection/update, and password modification.
 """
 from django.contrib.auth.models import update_last_login
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from rest_framework import generics, permissions, status
@@ -12,8 +14,12 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .models import User
+from .permissions import IsCMOAdmin
 from .serializers import (
     ChangePasswordSerializer,
+    CMOOfficerCreateSerializer,
+    CMOOfficerSerializer,
     UserLoginSerializer,
     UserRegistrationSerializer,
     UserSerializer,
@@ -229,3 +235,107 @@ class ChangePasswordView(APIView):
             {'message': _('Password changed successfully.')},
             status=status.HTTP_200_OK,
         )
+
+
+class CMOOfficerListCreateView(generics.ListCreateAPIView):
+    """
+    List all department officers or register a new department officer.
+    Restricted to CMO Administrators and Superusers.
+    Supports search (q) by name/email, and filtering by department and account status.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCMOAdmin]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return CMOOfficerCreateSerializer
+        return CMOOfficerSerializer
+
+    def get_queryset(self):
+        qs = User.objects.filter(role=User.Role.OFFICER).select_related('department').annotate(
+            assigned_grievances_count=Count(
+                'officer_assignments__grievance',
+                filter=Q(officer_assignments__is_active=True),
+                distinct=True
+            )
+        ).order_by('-created_at')
+
+        # Search filter
+        search = self.request.query_params.get('search') or self.request.query_params.get('q')
+        if search:
+            search = search.strip()
+            qs = qs.filter(Q(full_name__icontains=search) | Q(email__icontains=search))
+
+        # Department filter
+        dept = self.request.query_params.get('department')
+        if dept:
+            if str(dept).isdigit():
+                qs = qs.filter(department_id=dept)
+            else:
+                qs = qs.filter(Q(department__code__iexact=dept) | Q(department__name__icontains=dept))
+
+        # Status filter
+        status_param = self.request.query_params.get('status') or self.request.query_params.get('is_active')
+        if status_param is not None:
+            status_param = str(status_param).strip().lower()
+            if status_param in ('active', 'true', '1'):
+                qs = qs.filter(is_active=True)
+            elif status_param in ('inactive', 'false', '0'):
+                qs = qs.filter(is_active=False)
+
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        officer = serializer.save()
+        output_serializer = CMOOfficerSerializer(officer, context=self.get_serializer_context())
+        return Response(
+            {
+                'message': _('Department officer registered successfully.'),
+                'officer': output_serializer.data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CMOOfficerDetailView(generics.RetrieveUpdateAPIView):
+    """
+    Retrieve or update a department officer's details.
+    Restricted to CMO Administrators and Superusers.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCMOAdmin]
+    serializer_class = CMOOfficerSerializer
+
+    def get_queryset(self):
+        return User.objects.filter(role=User.Role.OFFICER).select_related('department').annotate(
+            assigned_grievances_count=Count(
+                'officer_assignments__grievance',
+                filter=Q(officer_assignments__is_active=True),
+                distinct=True
+            )
+        )
+
+
+class CMOOfficerToggleStatusView(APIView):
+    """
+    Activate or deactivate an officer account.
+    Restricted to CMO Administrators and Superusers.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCMOAdmin]
+
+    def post(self, request, pk, *args, **kwargs):
+        officer = get_object_or_404(User, pk=pk, role=User.Role.OFFICER)
+        officer.is_active = not officer.is_active
+        officer.save(update_fields=['is_active'])
+
+        state_str = 'activated' if officer.is_active else 'deactivated'
+        serializer = CMOOfficerSerializer(officer, context={'request': request})
+        return Response(
+            {
+                'message': _(f'Officer account {state_str} successfully.'),
+                'is_active': officer.is_active,
+                'officer': serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+

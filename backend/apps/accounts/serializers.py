@@ -105,7 +105,7 @@ class UserLoginSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     """
     Serializer for reading and updating user profile information.
-    Role and department are read-only.
+    Role, email, department, and active status are read-only for self-service profile updates.
     """
     department = DepartmentNestedSerializer(read_only=True)
 
@@ -118,10 +118,139 @@ class UserSerializer(serializers.ModelSerializer):
             'mobile',
             'role',
             'department',
+            'designation',
+            'employee_id',
+            'address',
             'is_active',
             'created_at',
         ]
-        read_only_fields = ['id', 'role', 'department', 'is_active', 'created_at']
+        read_only_fields = ['id', 'email', 'role', 'department', 'is_active', 'created_at']
+
+    def update(self, instance, validated_data):
+        # Prevent non-admin users from altering administrative attributes
+        if instance.role == User.Role.CITIZEN:
+            validated_data.pop('designation', None)
+            validated_data.pop('employee_id', None)
+        return super().update(instance, validated_data)
+
+
+class CMOOfficerSerializer(serializers.ModelSerializer):
+    """
+    Serializer for listing, retrieving and updating department officers by CMO administrators.
+    Includes department details, assigned grievances count, and active status.
+    """
+    department = DepartmentNestedSerializer(read_only=True)
+    department_id = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        source='department',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    assigned_grievances_count = serializers.SerializerMethodField()
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        style={'input_type': 'password'},
+        validators=[validate_password],
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'email',
+            'full_name',
+            'mobile',
+            'role',
+            'department',
+            'department_id',
+            'designation',
+            'employee_id',
+            'is_active',
+            'assigned_grievances_count',
+            'password',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'role', 'created_at', 'updated_at', 'assigned_grievances_count']
+
+    def get_assigned_grievances_count(self, obj):
+        if hasattr(obj, 'assigned_grievances_count'):
+            return obj.assigned_grievances_count
+        return obj.officer_assignments.filter(is_active=True).values('grievance_id').distinct().count()
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+        validated_data['role'] = User.Role.OFFICER
+        return super().update(instance, validated_data)
+
+
+class CMOOfficerCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for registering a new department officer by CMO Administrator.
+    Validates required fields: full_name, email, department, temporary password.
+    Automatically assigns the OFFICER role and hashes the temporary password.
+    """
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+        validators=[validate_password],
+    )
+    department_id = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.filter(is_active=True),
+        source='department',
+        required=True,
+        error_messages={'does_not_exist': _('Selected department does not exist or is inactive.')}
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'id',
+            'full_name',
+            'email',
+            'mobile',
+            'department_id',
+            'designation',
+            'employee_id',
+            'password',
+            'is_active',
+        ]
+        extra_kwargs = {
+            'email': {'required': True},
+            'full_name': {'required': True},
+            'mobile': {'required': False, 'allow_blank': True},
+            'designation': {'required': False, 'allow_blank': True},
+            'employee_id': {'required': False, 'allow_blank': True},
+            'is_active': {'required': False, 'default': True},
+        }
+
+    def validate_email(self, value):
+        normalized = value.strip().lower()
+        if User.objects.filter(email__iexact=normalized).exists():
+            raise serializers.ValidationError(_('A user with this email address already exists.'))
+        return normalized
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        department = validated_data.pop('department')
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            password=password,
+            full_name=validated_data['full_name'],
+            mobile=validated_data.get('mobile', ''),
+            role=User.Role.OFFICER,
+            department=department,
+            designation=validated_data.get('designation', ''),
+            employee_id=validated_data.get('employee_id', ''),
+            is_active=validated_data.get('is_active', True),
+        )
+        return user
 
 
 class ChangePasswordSerializer(serializers.Serializer):

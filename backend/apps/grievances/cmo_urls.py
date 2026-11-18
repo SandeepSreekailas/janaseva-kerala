@@ -15,9 +15,20 @@ from .views import (
     UpdateGrievanceStatusView,
 )
 
+from apps.accounts.views import (
+    CMOOfficerListCreateView,
+    CMOOfficerDetailView,
+    CMOOfficerToggleStatusView,
+)
+
 urlpatterns = [
     # Dashboard
     path('dashboard/', CMODashboardView.as_view(), name='cmo-dashboard'),
+
+    # Officer Management
+    path('officers/', CMOOfficerListCreateView.as_view(), name='cmo-officer-list'),
+    path('officers/<int:pk>/', CMOOfficerDetailView.as_view(), name='cmo-officer-detail'),
+    path('officers/<int:pk>/toggle-status/', CMOOfficerToggleStatusView.as_view(), name='cmo-officer-toggle-status'),
 
     # Grievances Triage & Management
     path('grievances/', CMOGrievanceListView.as_view(), name='cmo-grievance-list'),

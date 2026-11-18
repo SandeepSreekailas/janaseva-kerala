@@ -166,7 +166,7 @@ export default function OfficerLayout() {
 
                     <div className="py-1">
                       <Link
-                        to="/profile"
+                        to="/officer/profile"
                         onClick={() => setProfileDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                       >

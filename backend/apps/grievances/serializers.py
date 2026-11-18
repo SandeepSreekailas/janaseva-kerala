@@ -230,9 +230,11 @@ class AssignDepartmentSerializer(serializers.Serializer):
 
     def validate_officer_id(self, value):
         if value is not None:
-            officer = User.objects.filter(id=value, is_active=True).first()
+            officer = User.objects.filter(id=value).first()
             if not officer:
                 raise serializers.ValidationError("User with this ID does not exist.")
+            if not officer.is_active:
+                raise serializers.ValidationError("Cannot assign grievance to a deactivated officer.")
             if getattr(officer, 'role', '') != User.Role.OFFICER and not getattr(officer, 'is_officer', False):
                 raise serializers.ValidationError("Selected user does not have the officer role.")
         return value

@@ -36,6 +36,7 @@ import CMOGrievanceList from './pages/cmo/CMOGrievanceList';
 import CMOGrievanceDetail from './pages/cmo/CMOGrievanceDetail';
 import AnalyticsPage from './pages/cmo/AnalyticsPage';
 import CMODepartmentsPage from './pages/cmo/CMODepartmentsPage';
+import CMOOfficersPage from './pages/cmo/CMOOfficersPage';
 import CMOSettingsPage from './pages/cmo/CMOSettingsPage';
 
 // Department Officer Portal Pages
@@ -72,6 +73,22 @@ function RoleDashboardRedirect() {
   const { user } = useAuth();
   const dashboard = getDashboardUrlByRole(user?.role);
   return <Navigate to={dashboard} replace />;
+}
+
+/**
+ * Smart Profile Router
+ * Auto-routes /profile to the user's role-specific dashboard layout profile page
+ */
+function RoleProfileRedirect() {
+  const { user } = useAuth();
+  const role = (user?.role || '').toLowerCase();
+  if (role === 'cmo' || role === 'cmo_admin' || role === 'admin') {
+    return <Navigate to="/cmo/profile" replace />;
+  }
+  if (role === 'officer') {
+    return <Navigate to="/officer/profile" replace />;
+  }
+  return <Navigate to="/citizen/profile" replace />;
 }
 
 export default function App() {
@@ -129,6 +146,7 @@ export default function App() {
             <Route path="grievances" element={<GrievanceListPage />} />
             <Route path="grievances/:id" element={<GrievanceDetailPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
 
           {/* ============================================================ */}
@@ -146,10 +164,12 @@ export default function App() {
             <Route path="dashboard" element={<CMODashboard />} />
             <Route path="grievances" element={<CMOGrievanceList />} />
             <Route path="grievances/:id" element={<CMOGrievanceDetail />} />
+            <Route path="officers" element={<CMOOfficersPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="departments" element={<CMODepartmentsPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="settings" element={<CMOSettingsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
 
           {/* ============================================================ */}
@@ -169,6 +189,7 @@ export default function App() {
             <Route path="grievances/:id" element={<OfficerGrievanceDetail />} />
             <Route path="reports" element={<OfficerReportsPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
 
           {/* ============================================================ */}
@@ -178,9 +199,7 @@ export default function App() {
             path="/profile"
             element={
               <ProtectedRoute>
-                <PublicLayout>
-                  <ProfilePage />
-                </PublicLayout>
+                <RoleProfileRedirect />
               </ProtectedRoute>
             }
           />

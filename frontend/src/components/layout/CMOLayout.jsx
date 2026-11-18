@@ -16,6 +16,7 @@ import {
   Shield,
   Activity,
   ExternalLink,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUnreadCount } from '../../api/misc';
@@ -23,6 +24,7 @@ import { getUnreadCount } from '../../api/misc';
 const cmoNavLinks = [
   { to: '/cmo/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/cmo/grievances', label: 'All Grievances', icon: ClipboardList },
+  { to: '/cmo/officers', label: 'Officer Management', icon: Users },
   { to: '/cmo/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/cmo/departments', label: 'Departments', icon: Building2 },
   { to: '/cmo/notifications', label: 'Notifications', icon: Bell },
@@ -181,7 +183,7 @@ export default function CMOLayout() {
                         <span>System & Security Settings</span>
                       </Link>
                       <Link
-                        to="/profile"
+                        to="/cmo/profile"
                         onClick={() => setProfileDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                       >

@@ -62,13 +62,25 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const userData = await authApi.getCurrentUser();
+      setUser(userData);
+      return userData;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const value = {
     user,
+    setUser,
     loading,
     isAuthenticated,
     login,
     register,
     logout,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
