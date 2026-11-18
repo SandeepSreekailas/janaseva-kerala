@@ -3,6 +3,7 @@ Django settings for Janaseva Kerala project.
 Chief Minister's Public Grievance Redressal Portal (Demonstration Prototype)
 """
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
@@ -19,9 +20,29 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-janaseva-kerala-prototype-
 
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',') if host.strip()]
+# Host and Domain Configuration (Render & Local)
+allowed_hosts_raw = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver,.onrender.com')
+ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_raw.split(',') if h.strip()]
+render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME', '').strip()
+if render_host and render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_host)
 if 'testserver' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('testserver')
+
+# Proxy SSL Header (Render, Cloudflare, AWS load balancers terminating HTTPS)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# CSRF Trusted Origins (Required for Django admin & form submissions over HTTPS)
+csrf_origins_raw = os.getenv(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,https://*.onrender.com,https://*.vercel.app'
+)
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins_raw.split(',') if o.strip()]
+if render_host and f'https://{render_host}' not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{render_host}')
+frontend_url = os.getenv('FRONTEND_URL', '').strip()
+if frontend_url and frontend_url not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(frontend_url)
 
 # Application definition
 INSTALLED_APPS = [
@@ -84,7 +105,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database Configuration: Neon PostgreSQL support with SQLite development fallback
 DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
-if DATABASE_URL:
+is_testing = 'test' in sys.argv and not os.getenv('TEST_WITH_POSTGRES')
+
+if DATABASE_URL and not is_testing:
     is_neon_pooler = '-pooler' in DATABASE_URL
     ssl_require = os.getenv('DB_SSL_REQUIRE', 'True').lower() in ('true', '1', 'yes')
     # Use conn_max_age=0 for connection poolers (pgBouncer transaction mode) or fallback to 600
@@ -142,7 +165,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# WhiteNoise production static storage (compressed with Gzip/Brotli, resilient against missing manifests)
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
 # Media files
 MEDIA_URL = '/media/'
@@ -162,6 +194,13 @@ if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
     )
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Production Security Headers & Cookie Flags
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # REST Framework Configuration
 REST_FRAMEWORK = {

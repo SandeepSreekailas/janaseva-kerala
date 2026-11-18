@@ -22,7 +22,36 @@ def health_check(request):
         'disclaimer': 'Demonstration recruitment prototype for WhiteMatrix Software Solutions. Not affiliated with Government of Kerala.'
     })
 
+
+def api_root(request):
+    """Root entrypoint and API index for testing and status checks."""
+    return JsonResponse({
+        'service': 'Janaseva Kerala Grievance Redressal Portal API',
+        'status': 'online',
+        'version': '1.0.0',
+        'health_check': '/api/health/',
+        'documentation': '/api/docs/',
+        'schema': '/api/schema/',
+        'admin': '/admin/',
+        'endpoints': {
+            'auth': '/api/auth/',
+            'departments': '/api/departments/',
+            'grievances': '/api/grievances/',
+            'cmo': '/api/cmo/',
+            'officer': '/api/officer/',
+            'ai_assistant': '/api/ai/',
+            'contact': '/api/contact/',
+            'notifications': '/api/notifications/',
+            'analytics': '/api/analytics/',
+        }
+    })
+
+
 urlpatterns = [
+    # Root entrypoints
+    path('', api_root, name='root'),
+    path('api/', api_root, name='api-root'),
+
     # Administration
     path('admin/', admin.site.urls),
 
