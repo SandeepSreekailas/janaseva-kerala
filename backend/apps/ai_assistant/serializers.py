@@ -29,3 +29,5 @@ class AnalyzeGrievanceResponseSerializer(serializers.Serializer):
     suggested_priority = serializers.CharField(help_text="Suggested urgency priority (Low, Medium, High, Urgent)")
     reasoning = serializers.CharField(help_text="Explanation of the advisory recommendations")
     is_fallback = serializers.BooleanField(help_text="True if heuristic fallback was used instead of live Gemini API")
+    source = serializers.CharField(required=False, help_text="AI provider source or fallback engine")
+    model = serializers.CharField(required=False, allow_null=True, help_text="Gemini model name if live AI was used")

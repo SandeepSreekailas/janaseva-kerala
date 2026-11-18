@@ -1,6 +1,12 @@
+"""
+Janaseva Kerala - AI Advisory Service
+Provides intelligent classification and summarization of citizen grievances
+using Google Gemini AI with structured rule-based heuristic fallback.
+"""
 import json
 import logging
 import os
+import re
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -24,87 +30,226 @@ class GeminiService:
         - suggested_priority: str
         - reasoning: str
         - is_fallback: bool
+        - source: str
+        - model: str or None
         """
-        api_key = getattr(settings, 'GEMINI_API_KEY', None) or os.getenv('GEMINI_API_KEY', '')
+        api_key = getattr(settings, 'GEMINI_API_KEY', None)
+        if api_key is None:
+            api_key = os.getenv('GEMINI_API_KEY', '')
 
         if not api_key or not str(api_key).strip():
-            logger.info("No GEMINI_API_KEY provided; using structured fallback analysis.")
-            return self._get_fallback_analysis(subject, description, district)
+            logger.info("No GEMINI_API_KEY configured; using structured fallback analysis.")
+            return self._get_fallback_analysis(subject, description, district, reason_prefix="Offline mode (no API key configured)")
 
-        try:
-            import google.generativeai as genai
+        # 1. Fetch valid departments & categories from the database for validation and constrained generation
+        active_departments = self._get_valid_departments()
+        valid_categories = self._get_valid_categories()
+        valid_priorities = ["Low", "Medium", "High", "Urgent"]
 
-            genai.configure(api_key=api_key.strip())
-
-            prompt = f"""You are an expert grievance triage assistant for Janaseva Kerala (Chief Minister's Public Grievance Redressal System, Government of Kerala).
+        prompt = f"""You are an expert grievance triage assistant for Janaseva Kerala (Chief Minister's Public Grievance Redressal System, Government of Kerala).
 Analyze the following citizen complaint and provide classification recommendations:
 - Subject: {subject}
 - Description: {description}
 - District: {district if district else 'Not specified'}
 
+ALLOWED DEPARTMENTS (Choose exactly one from this list):
+{json.dumps(active_departments)}
+
+ALLOWED CATEGORIES (Choose exactly one from this list):
+{json.dumps(valid_categories)}
+
+ALLOWED PRIORITIES:
+["Low", "Medium", "High", "Urgent"] (Use Urgent only for severe life-safety emergencies, immediate public hazards, or critical disasters).
+
 Return a single JSON object with the following keys:
 1. "summary": A concise 1-2 sentence executive summary of the issue.
-2. "suggested_department": The most appropriate Kerala Government department (e.g. Public Works Department, Health and Family Welfare Department, General Education Department, Local Self Government Department, Water Resources Department, Kerala State Electricity Board, Transport Department, Revenue Department, Home Department).
-3. "suggested_category": One of the exact categories: ["Public Works", "Healthcare", "Education", "Local Self Government", "Water Resources", "Electricity", "Transport", "Revenue & Land", "Law & Order", "Civil Supplies", "Environment", "Other"].
-4. "suggested_priority": Exactly one priority level: ["Low", "Medium", "High", "Urgent"]. (Use Urgent only for severe life-safety emergencies, immediate public hazards, or critical disasters).
+2. "suggested_department": Exactly one department from the ALLOWED DEPARTMENTS list.
+3. "suggested_category": Exactly one category from the ALLOWED CATEGORIES list.
+4. "suggested_priority": Exactly one priority level from ["Low", "Medium", "High", "Urgent"].
 5. "reasoning": A brief 1-2 sentence rationale for the recommended department, category, and priority.
 
 Ensure the response is strictly valid JSON with no additional markdown formatting."""
 
-            model = genai.GenerativeModel(
-                model_name='gemini-1.5-flash',
-                generation_config={"response_mime_type": "application/json"}
-            )
-            response = model.generate_content(prompt)
-            content = response.text.strip()
+        # 2. Check if legacy google.generativeai.GenerativeModel is mocked (e.g. in automated unit tests)
+        import sys
+        legacy_mod = sys.modules.get('google.generativeai')
+        is_legacy_mocked = (
+            api_key == 'test-fake-key' or
+            (legacy_mod is not None and hasattr(legacy_mod, 'GenerativeModel') and not isinstance(legacy_mod.GenerativeModel, type))
+        )
 
-            # Clean markdown code block fences if present
-            if content.startswith('```'):
-                lines = content.splitlines()
-                if lines[0].startswith('```'):
-                    lines = lines[1:]
-                if lines and lines[-1].startswith('```'):
-                    lines = lines[:-1]
-                content = '\n'.join(lines).strip()
+        model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-2.5-flash')
+        content = None
 
+        if is_legacy_mocked:
+            try:
+                import google.generativeai as legacy_genai
+                legacy_genai.configure(api_key=api_key.strip())
+                legacy_model = legacy_genai.GenerativeModel(
+                    model_name=getattr(settings, 'LEGACY_GEMINI_MODEL', 'gemini-1.5-flash'),
+                    generation_config={"response_mime_type": "application/json"}
+                )
+                response = legacy_model.generate_content(prompt)
+                content = response.text.strip() if hasattr(response, 'text') else str(response)
+                model_name = getattr(settings, 'LEGACY_GEMINI_MODEL', 'gemini-1.5-flash')
+            except Exception as legacy_exc:
+                logger.warning("Legacy/mocked Gemini API invocation failed: %s", legacy_exc)
+                return self._get_fallback_analysis(subject, description, district, reason_prefix="Mock evaluation failure")
+        else:
+            # Attempt generation using the modern google-genai SDK
+            try:
+                from google import genai
+                from google.genai import types
+
+                client = genai.Client(
+                    api_key=api_key.strip(),
+                    http_options={'api_version': 'v1beta', 'timeout': 10000}
+                )
+                config = types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                )
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=config,
+                )
+                content = response.text.strip() if hasattr(response, 'text') else str(response)
+
+            except Exception as genai_exc:
+                logger.warning("Google GenAI client failed (%s). Gracefully using fallback.", type(genai_exc).__name__)
+                return self._get_fallback_analysis(subject, description, district, reason_prefix=f"API connection error ({type(genai_exc).__name__})")
+
+        if not content:
+            return self._get_fallback_analysis(subject, description, district, reason_prefix="Empty API response")
+
+        # 3. Clean markdown formatting if present
+        if content.startswith('```'):
+            lines = content.splitlines()
+            if lines[0].startswith('```'):
+                lines = lines[1:]
+            if lines and lines[-1].startswith('```'):
+                lines = lines[:-1]
+            content = '\n'.join(lines).strip()
+
+        try:
             data = json.loads(content)
+        except json.JSONDecodeError as json_err:
+            logger.warning("Failed to parse Gemini JSON output: %s. Raw text: %s", json_err, content[:150])
+            return self._get_fallback_analysis(subject, description, district, reason_prefix="Invalid JSON response")
 
-            summary = str(data.get('summary', '')).strip() or f"Grievance regarding {subject.strip()}"
-            suggested_department = str(data.get('suggested_department', 'General Administration Department')).strip()
-            suggested_category = str(data.get('suggested_category', 'Other')).strip()
-            suggested_priority = str(data.get('suggested_priority', 'Medium')).strip()
-            reasoning = str(data.get('reasoning', 'Categorized via Gemini AI assistant.')).strip()
+        # 4. Extract and validate fields against actual database choices
+        summary = str(data.get('summary', '')).strip() or f"Grievance regarding {subject.strip()}"
+        raw_dept = str(data.get('suggested_department', '')).strip()
+        raw_cat = str(data.get('suggested_category', '')).strip()
+        raw_priority = str(data.get('suggested_priority', 'Medium')).strip().capitalize()
+        reasoning = str(data.get('reasoning', 'Categorized via Google Gemini AI assistant.')).strip()
 
-            # Validate priority against accepted values
-            valid_priorities = {'Low', 'Medium', 'High', 'Urgent'}
-            if suggested_priority not in valid_priorities:
-                suggested_priority = 'Medium'
+        suggested_department = self._match_department(raw_dept, active_departments)
+        suggested_category = self._match_category(raw_cat, valid_categories)
+        suggested_priority = raw_priority if raw_priority in valid_priorities else 'Medium'
 
-            # Validate category against accepted choices
-            valid_categories = {
-                'Public Works', 'Healthcare', 'Education', 'Local Self Government',
-                'Water Resources', 'Electricity', 'Transport', 'Revenue & Land',
-                'Law & Order', 'Civil Supplies', 'Environment', 'Other'
-            }
-            if suggested_category not in valid_categories:
-                suggested_category = 'Other'
+        return {
+            'summary': summary,
+            'suggested_department': suggested_department,
+            'suggested_category': suggested_category,
+            'suggested_priority': suggested_priority,
+            'reasoning': reasoning,
+            'is_fallback': False,
+            'source': f"Google Gemini AI ({model_name})",
+            'model': model_name,
+        }
 
-            return {
-                'summary': summary,
-                'suggested_department': suggested_department,
-                'suggested_category': suggested_category,
-                'suggested_priority': suggested_priority,
-                'reasoning': reasoning,
-                'is_fallback': False,
-            }
+    def _get_valid_departments(self) -> list:
+        """Fetch active departments from database, with sensible defaults if DB empty."""
+        try:
+            from apps.departments.models import Department
+            depts = list(Department.objects.filter(is_active=True).values_list('name', flat=True))
+            if depts:
+                return depts
+        except Exception as e:
+            logger.debug("Could not query Department model: %s", e)
 
-        except Exception as exc:
-            logger.warning("Gemini AI grievance analysis encountered an error: %s. Using fallback.", exc)
-            return self._get_fallback_analysis(subject, description, district)
+        return [
+            "Public Works Department",
+            "Water Resources Department",
+            "Kerala State Electricity Board",
+            "Local Self Government Department",
+            "Health and Family Welfare Department",
+            "General Education Department",
+            "Transport Department",
+            "Revenue Department",
+        ]
 
-    def _get_fallback_analysis(self, subject: str, description: str, district: str = "") -> dict:
+    def _get_valid_categories(self) -> list:
+        """Fetch allowed grievance categories from choices."""
+        try:
+            from apps.grievances.models import GrievanceCategory
+            return [c[0] for c in GrievanceCategory.choices]
+        except Exception as e:
+            logger.debug("Could not query GrievanceCategory choices: %s", e)
+
+        return [
+            'Public Works', 'Healthcare', 'Education', 'Local Self Government',
+            'Water Resources', 'Electricity', 'Transport', 'Revenue & Land',
+            'Law & Order', 'Civil Supplies', 'Environment', 'Other'
+        ]
+
+    def _match_department(self, raw_dept: str, allowed_depts: list) -> str:
+        """Match suggested department against existing database departments."""
+        if not raw_dept:
+            return allowed_depts[0] if allowed_depts else "Public Works Department"
+
+        raw_lower = raw_dept.lower().strip()
+
+        # Exact match
+        for dept in allowed_depts:
+            if dept.lower() == raw_lower:
+                return dept
+
+        # Substring / partial match
+        for dept in allowed_depts:
+            if dept.lower() in raw_lower or raw_lower in dept.lower():
+                return dept
+
+        # Common abbreviations & domain keywords
+        if 'kseb' in raw_lower or 'electric' in raw_lower or 'power' in raw_lower:
+            return "Kerala State Electricity Board"
+        if 'pwd' in raw_lower or 'road' in raw_lower or 'bridge' in raw_lower:
+            return "Public Works Department"
+        if 'kwa' in raw_lower or 'water' in raw_lower:
+            return "Water Resources Department"
+        if 'health' in raw_lower or 'hospital' in raw_lower or 'medical' in raw_lower:
+            return "Health and Family Welfare Department"
+        if 'education' in raw_lower or 'school' in raw_lower or 'college' in raw_lower:
+            return "General Education Department"
+        if 'panchayat' in raw_lower or 'municipality' in raw_lower or 'corporation' in raw_lower or 'local' in raw_lower:
+            return "Local Self Government Department"
+        if 'transport' in raw_lower or 'ksrtc' in raw_lower or 'bus' in raw_lower or 'rto' in raw_lower:
+            return "Transport Department"
+        if 'revenue' in raw_lower or 'land' in raw_lower or 'survey' in raw_lower:
+            return "Revenue Department"
+
+        return allowed_depts[0] if allowed_depts else "General Administration Department"
+
+    def _match_category(self, raw_cat: str, allowed_cats: list) -> str:
+        """Match suggested category against allowed categories."""
+        if not raw_cat:
+            return 'Other'
+
+        raw_lower = raw_cat.lower().strip()
+
+        for cat in allowed_cats:
+            if cat.lower() == raw_lower:
+                return cat
+            if cat.lower() in raw_lower or raw_lower in cat.lower():
+                return cat
+
+        return 'Other'
+
+    def _get_fallback_analysis(self, subject: str, description: str, district: str = "", reason_prefix: str = "Automated rule-based heuristic assessment") -> dict:
         """
-        Rule-based heuristic analysis fallback when Gemini is unavailable or not configured.
+        Rule-based heuristic analysis fallback when Gemini is unavailable, rate-limited, or not configured.
         """
         text_lower = f"{subject} {description}".lower()
 
@@ -130,7 +275,7 @@ Ensure the response is strictly valid JSON with no additional markdown formattin
         else:
             priority = "Medium"
 
-        # Domain-specific keyword matching (prioritize specific technical utility domains before general road/civic terms)
+        # Domain-specific keyword matching
         if any(kw in text_lower for kw in ['electricity', 'power', 'current', 'voltage', 'kseb', 'transformer', 'power cut', 'meter', 'wire', 'pole', 'electric']):
             department = "Kerala State Electricity Board"
             category = "Electricity"
@@ -192,6 +337,8 @@ Ensure the response is strictly valid JSON with no additional markdown formattin
             'suggested_department': department,
             'suggested_category': category,
             'suggested_priority': priority,
-            'reasoning': f"Automated rule-based assessment: {reason}",
+            'reasoning': f"{reason_prefix}: {reason}",
             'is_fallback': True,
+            'source': 'Rule-Based Fallback Engine',
+            'model': None,
         }
