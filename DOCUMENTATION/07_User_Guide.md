@@ -192,6 +192,32 @@ The Chief Minister's Office (CMO) Administrator holds statewide supervisory and 
 
 ---
 
+### 4.7 Officer Management
+1. Navigate to **"Officer Management"** (`/cmo/officers`) from the CMO sidebar.
+2. **Review Officer Directory**:
+   - Inspect all registered department nodal officers across the state.
+   - Monitor real-time workload counts showing active grievances assigned to each officer.
+   - Search by officer name or government email address.
+   - Filter by department or account status (`Active` vs. `Deactivated`).
+3. **Register New Department Officer**:
+   - Click **"Register New Officer"**.
+   - Provide **Full Name**, **Government Email**, **Department**, **Phone Number**, **Designation**, **Employee ID**, and a **Temporary Initial Password**.
+   - Submitting creates the account with the `Officer` role and hashes the temporary password.
+4. **Edit & Supervise Officer Accounts**:
+   - Click **"Edit"** to update an officer's phone, department, designation, employee ID, or reset their temporary password.
+   - Click **"View"** to inspect the officer's administrative dossier, registered date, and workload.
+   - Click the **Power Toggle** to activate or deactivate an officer. Deactivated officers are automatically blocked from receiving new grievance assignments.
+
+---
+
+### 4.8 User Profile & Account Settings
+1. Click the avatar in the top navigation bar and select **"My Profile"** (or navigate to `/cmo/profile`, `/officer/profile`, or `/citizen/profile`).
+2. View verified credentials, account creation date, and administrative scope.
+3. Edit permitted personal contact information (Full Name, Phone Number, Residential Address). Official role and assigned department are read-only.
+4. Change account password by providing the existing password and a new secure password (minimum 6 characters).
+
+---
+
 ## 5. Public Tools & Information Services
 
 Janaseva Kerala includes open-access civic features accessible to all visitors without requiring account registration:

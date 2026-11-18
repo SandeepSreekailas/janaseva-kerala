@@ -169,7 +169,7 @@ Obtains a new access token using an unexpired refresh token.
 ---
 
 ### 4.4 Get Current User Profile
-Retrieves authenticated user details.
+Retrieves authenticated user details. Always scoped strictly to the calling user token.
 
 - **Method**: `GET`
 - **Path**: `/api/auth/me/`
@@ -188,13 +188,57 @@ Retrieves authenticated user details.
     "code": "PWD",
     "contact_email": "pwd@janaseva.kerala.gov.in"
   },
+  "designation": "Executive Engineer",
+  "employee_id": "KL-PWD-4401",
+  "address": "",
+  "is_active": true,
   "created_at": "2026-11-17T09:15:00Z"
 }
 ```
 
 ---
 
-### 4.5 Logout (Token Blacklist)
+### 4.5 Update Current User Profile
+Updates permitted personal contact details for the authenticated user. Role and department cannot be modified.
+
+- **Method**: `PATCH`
+- **Path**: `/api/auth/me/`
+- **Auth Required**: Authenticated (Any Role)
+- **Request Body**:
+```json
+{
+  "full_name": "Kavitha R Nair",
+  "mobile": "9447112233",
+  "address": "TC 14/820, Nandavanam, Thiruvananthapuram"
+}
+```
+- **Response `200 OK`**: Returns updated user profile JSON.
+
+---
+
+### 4.6 Change Password
+Changes password for the current authenticated user session after validating existing password.
+
+- **Method**: `POST`
+- **Path**: `/api/auth/change-password/`
+- **Auth Required**: Authenticated (Any Role)
+- **Request Body**:
+```json
+{
+  "old_password": "CurrentPassword123!",
+  "new_password": "NewSecurePassword456!"
+}
+```
+- **Response `200 OK`**:
+```json
+{
+  "message": "Password changed successfully."
+}
+```
+
+---
+
+### 4.7 Logout (Token Blacklist)
 Blacklists the refresh token to terminate session.
 
 - **Method**: `POST`
@@ -578,6 +622,62 @@ Immediately escalates a grievance to Urgent or High with notification dispatch.
 
 ---
 
+### 7.6 List and Register Department Officers
+Lists registered officers with search/filters, or registers a new department officer.
+
+- **Method**: `GET`, `POST`
+- **Path**: `/api/cmo/officers/`
+- **Auth Required**: CMO Administrator (`IsCMOAdmin`)
+- **Query Parameters (GET)**: `search`, `department`, `status` (`active`/`inactive`)
+- **Request Body (POST)**:
+```json
+{
+  "full_name": "Er. Arun Varma",
+  "email": "officer.pwd2@janaseva.kerala.gov.in",
+  "mobile": "9447123456",
+  "department_id": 1,
+  "designation": "Assistant Executive Engineer",
+  "employee_id": "KL-PWD-8890",
+  "password": "TemporaryPassword123!"
+}
+```
+- **Response `201 Created`**:
+```json
+{
+  "message": "Department officer registered successfully.",
+  "officer": {
+    "id": 14,
+    "email": "officer.pwd2@janaseva.kerala.gov.in",
+    "full_name": "Er. Arun Varma",
+    "role": "officer",
+    "department": { "id": 1, "name": "Public Works Department", "code": "PWD" },
+    "designation": "Assistant Executive Engineer",
+    "employee_id": "KL-PWD-8890",
+    "is_active": true,
+    "assigned_grievances_count": 0
+  }
+}
+```
+
+---
+
+### 7.7 Toggle Officer Account Status
+Activates or deactivates an officer account. Deactivated officers are blocked from receiving new grievance assignments.
+
+- **Method**: `POST`
+- **Path**: `/api/cmo/officers/{id}/toggle-status/`
+- **Auth Required**: CMO Administrator (`IsCMOAdmin`)
+- **Response `200 OK`**:
+```json
+{
+  "message": "Officer account deactivated successfully.",
+  "is_active": false,
+  "officer": { "id": 14, "is_active": false }
+}
+```
+
+---
+
 ## 8. Department Officer Module (`/api/officer/`)
 
 ### 8.1 Officer Dashboard
@@ -701,7 +801,9 @@ Predicts category, department, priority, and produces an executive summary.
   "suggested_category": "Electricity",
   "suggested_priority": "Urgent",
   "reasoning": "Live sparking high-tension wire in a crowded public transit terminal represents an immediate life-safety hazard under KSEB jurisdiction.",
-  "is_fallback": false
+  "is_fallback": false,
+  "source": "Google Gemini AI (gemini-2.5-flash)",
+  "model": "gemini-2.5-flash"
 }
 ```
 

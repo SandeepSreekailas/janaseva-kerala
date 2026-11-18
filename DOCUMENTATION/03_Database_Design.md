@@ -56,6 +56,9 @@ erDiagram
         string mobile
         string role
         int department_id FK
+        string designation
+        string employee_id
+        string address
         boolean is_active
         boolean is_staff
         datetime created_at
@@ -229,6 +232,9 @@ Stores system accounts for all three user roles. Uses email as unique username.
 | `mobile` | CharField(20) | Blank=True, Default="" | Contact telephone number |
 | `role` | CharField(20) | db_index, Default="citizen" | Role enum: citizen / cmo_admin / officer |
 | `department_id` | ForeignKey | Nullable, SET_NULL | Assigned department (for officers only) |
+| `designation` | CharField(150) | Blank=True, Default="" | Official designation (for officers) |
+| `employee_id` | CharField(50) | Blank=True, Default="" | Departmental employee ID (for officers) |
+| `address` | TextField | Blank=True, Default="" | Residential / communication address (for citizens) |
 | `is_active` | BooleanField | Default=True | Login activation toggle |
 | `is_staff` | BooleanField | Default=False | Django admin permission |
 | `is_superuser` | BooleanField | Default=False | Super administrator status |

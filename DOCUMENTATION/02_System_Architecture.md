@@ -38,7 +38,7 @@ Janaseva Kerala is built upon a **decoupled, multi-tier client-server architectu
                    ▼                                ▼
 ┌──────────────────────────────────────┐ ┌───────────────────────────────┐
 │          PERSISTENCE LAYER           │ │        AI ADVISORY CORE       │
-│  Neon PostgreSQL / SQLite (Local)    │ │  Google Gemini 1.5 Flash      │
+│  Neon PostgreSQL / SQLite (Local)    │ │  Google Gemini 2.5 Flash      │
 │  Django ORM with Atomic Transactions │ │  Heuristic Rule-Based Fallback│
 └──────────────────────────────────────┘ └───────────────────────────────┘
 ```
@@ -73,7 +73,7 @@ flowchart TD
         AppAccounts["accounts\n(Custom User, Auth, JWT)"]
         AppDepts["departments\n(Directory & Catalog)"]
         AppGrievances["grievances\n(Core Workflow, ATR, Feedback)"]
-        AppAI["ai_assistant\n(Gemini 1.5 Flash + Fallback)"]
+        AppAI["ai_assistant\n(Gemini 2.5 Flash + Fallback)"]
         AppNotifs["notifications\n(In-app user alerts)"]
         AppEnquiries["enquiries\n(Citizen contact pipeline)"]
         AppAnalytics["analytics\n(Statewide aggregations)"]
@@ -202,9 +202,10 @@ The Django backend is segmented into 7 modular domain applications within `backe
 - **Internal Remarks**: Confidential notes added by CMO administrators.
 
 ### 4.4 `apps.ai_assistant`
-- **Advisory Service**: `GeminiService` encapsulates communication with Google Gemini 1.5 Flash.
+- **Advisory Service**: `GeminiService` encapsulates communication with Google Gemini 2.5 Flash via modern `google-genai` SDK.
 - **Schema Enforcement**: Requests strictly structured JSON output for summary, department, category, priority, and reasoning.
-- **Defensive Fallback**: Full keyword-matching heuristic engine that takes over if API credentials are unavailable or rate-limited.
+- **Database Validation**: Validates predictions against active departments and categories in PostgreSQL.
+- **Defensive Fallback**: Full keyword-matching heuristic engine that takes over if API credentials are unavailable, rate-limited, or network is offline.
 
 ### 4.5 `apps.notifications`
 - **In-App Messaging**: Generates targeted alerts for citizens (e.g. status updates) and officers (e.g. new assignments).
@@ -305,6 +306,7 @@ Permissions are strictly validated at the DRF view level before query execution:
 | `/api/grievances/` [GET] | Own Grievances | Forbidden | Forbidden | Forbidden |
 | `/api/grievances/` [POST] | Allowed | Forbidden | Forbidden | Forbidden |
 | `/api/grievances/track/` | Allowed | Allowed | Allowed | Allowed |
+| `/api/cmo/officers/*` | Forbidden | Forbidden | Full Access | Forbidden |
 | `/api/cmo/*` | Forbidden | Forbidden | Full Access | Forbidden |
 | `/api/officer/*` | Forbidden | Department Scope | Forbidden | Forbidden |
 | `/api/analytics/*` | Forbidden | Forbidden | Full Access | Forbidden |

@@ -154,6 +154,7 @@ The application reads environment configuration from `backend/.env` using `pytho
 | `CORS_ALLOWED_ORIGINS` | Optional | `http://localhost:5173,http://127.0.0.1:5173` | Allowed frontend client origins. |
 | `CORS_ALLOW_ALL_ORIGINS`| Optional | `False` | Disables origin check when set to `True`. |
 | `GEMINI_API_KEY` | Optional | *Empty* | Google Gemini API key. If absent, fallback heuristic engine is used. |
+| `GEMINI_MODEL` | Optional | `gemini-2.5-flash` | Gemini model identifier used for analysis. |
 | `CLOUDINARY_CLOUD_NAME`| Optional | *Empty* | Cloudinary cloud identifier for media hosting. |
 | `CLOUDINARY_API_KEY` | Optional | *Empty* | Cloudinary API Key. |
 | `CLOUDINARY_API_SECRET`| Optional | *Empty* | Cloudinary API Secret. |
