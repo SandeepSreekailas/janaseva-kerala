@@ -481,7 +481,7 @@ export default function OfficerGrievanceList() {
                         <th className="px-5 py-3.5">District</th>
                         <th className="px-5 py-3.5">Priority</th>
                         <th className="px-5 py-3.5">Status</th>
-                        <th className="px-5 py-3.5">Filed On</th>
+                        <th className="px-5 py-3.5">Assignment Date</th>
                         <th className="px-5 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -542,9 +542,9 @@ export default function OfficerGrievanceList() {
                             <StatusBadge status={item.status} />
                           </td>
 
-                          {/* Created date */}
+                          {/* Assignment date */}
                           <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500">
-                            {formatDate(item.created_at)}
+                            {formatDate(item.assigned_at || item.created_at)}
                           </td>
 
                           {/* Actions */}

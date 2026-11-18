@@ -315,26 +315,26 @@ class CMODashboardView(APIView):
 
         # By status
         status_counts = {choice[0]: 0 for choice in GrievanceStatus.choices}
-        status_qs = Grievance.objects.values('status').annotate(count=Count('id'))
+        status_qs = Grievance.objects.order_by().values('status').annotate(count=Count('id', distinct=True))
         for item in status_qs:
             status_counts[item['status']] = item['count']
 
         # By priority
         priority_counts = {choice[0]: 0 for choice in GrievancePriority.choices}
-        priority_qs = Grievance.objects.values('priority').annotate(count=Count('id'))
+        priority_qs = Grievance.objects.order_by().values('priority').annotate(count=Count('id', distinct=True))
         for item in priority_qs:
             priority_counts[item['priority']] = item['count']
 
         # By district
         district_counts = {choice[0]: 0 for choice in District.choices}
-        district_qs = Grievance.objects.values('district').annotate(count=Count('id'))
+        district_qs = Grievance.objects.order_by().values('district').annotate(count=Count('id', distinct=True))
         for item in district_qs:
             if item['district'] in district_counts:
                 district_counts[item['district']] = item['count']
 
         # By category
         category_counts = {choice[0]: 0 for choice in GrievanceCategory.choices}
-        category_qs = Grievance.objects.values('category').annotate(count=Count('id'))
+        category_qs = Grievance.objects.order_by().values('category').annotate(count=Count('id', distinct=True))
         for item in category_qs:
             if item['category'] in category_counts:
                 category_counts[item['category']] = item['count']
@@ -500,6 +500,20 @@ class AssignDepartmentView(APIView):
                     message=f"You have been assigned to handle grievance '{grievance.subject}'.",
                     grievance=grievance
                 )
+            else:
+                # Department-level pool assignment: notify all active officers of this department
+                dept_officers = User.objects.filter(
+                    department=department,
+                    role=User.Role.OFFICER,
+                    is_active=True
+                )
+                for dept_officer in dept_officers:
+                    send_notification(
+                        user=dept_officer,
+                        title=f"New Department Assignment: {grievance.reference_number}",
+                        message=f"Grievance '{grievance.subject}' has been assigned to the {department.name} queue for field investigation.",
+                        grievance=grievance
+                    )
 
             send_notification(
                 user=grievance.citizen,
@@ -754,6 +768,17 @@ class OfficerDashboardView(APIView):
 
         total_assigned = assigned_qs.count()
 
+        newly_assigned = assigned_qs.filter(
+            status__in=[
+                GrievanceStatus.SUBMITTED,
+                GrievanceStatus.UNDER_REVIEW,
+            ]
+        ).count()
+
+        under_investigation = assigned_qs.filter(
+            status=GrievanceStatus.IN_PROGRESS
+        ).count()
+
         pending_action = assigned_qs.filter(
             status__in=[
                 GrievanceStatus.SUBMITTED,
@@ -774,13 +799,13 @@ class OfficerDashboardView(APIView):
 
         # By priority
         priority_counts = {choice[0]: 0 for choice in GrievancePriority.choices}
-        priority_qs = assigned_qs.values('priority').annotate(count=Count('id'))
+        priority_qs = assigned_qs.order_by().values('priority').annotate(count=Count('id', distinct=True))
         for item in priority_qs:
             priority_counts[item['priority']] = item['count']
 
         # By status
         status_counts = {choice[0]: 0 for choice in GrievanceStatus.choices}
-        status_qs = assigned_qs.values('status').annotate(count=Count('id'))
+        status_qs = assigned_qs.order_by().values('status').annotate(count=Count('id', distinct=True))
         for item in status_qs:
             status_counts[item['status']] = item['count']
 
@@ -796,6 +821,8 @@ class OfficerDashboardView(APIView):
 
         return Response({
             'total_assigned': total_assigned,
+            'newly_assigned': newly_assigned,
+            'under_investigation': under_investigation,
             'pending_action': pending_action,
             'resolved': resolved,
             'overdue': overdue_count,
@@ -876,13 +903,16 @@ class OfficerUpdateStatusView(APIView):
         remarks = serializer.validated_data.get('remarks', '')
         previous_status = grievance.status
 
+        # Enforce that officers cannot directly mark grievances as Resolved.
+        # Grievance resolution requires Action Taken Report submission and CMO approval.
+        if new_status == GrievanceStatus.RESOLVED:
+            return Response(
+                {"detail": "Department officers cannot directly mark grievances as Resolved. Please submit an Action Taken Report (ATR) for CMO review and resolution approval."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         with transaction.atomic():
             grievance.status = new_status
-            if new_status == GrievanceStatus.RESOLVED:
-                grievance.resolved_at = timezone.now()
-            elif previous_status == GrievanceStatus.RESOLVED and new_status != GrievanceStatus.RESOLVED:
-                grievance.resolved_at = None
-
             grievance.save()
 
             GrievanceHistory.objects.create(

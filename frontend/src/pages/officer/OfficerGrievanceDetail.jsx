@@ -719,9 +719,11 @@ export default function OfficerGrievanceDetail() {
                           className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#245A91] font-medium"
                         >
                           <option value="In Progress">In Progress (Active Field Work)</option>
-                          <option value="Under Review">Under Review</option>
-                          <option value="Resolved">Resolved (Investigation Concluded)</option>
+                          <option value="Under Review">Under Review (Pending Re-investigation)</option>
                         </select>
+                        <p className="text-[10px] text-slate-500 mt-1 italic">
+                          Note: Formal case resolution requires Action Taken Report (ATR) submission and CMO verification below.
+                        </p>
                         {statusErrors.status && (
                           <p className="text-[11px] text-red-600 mt-1">
                             {statusErrors.status.message}

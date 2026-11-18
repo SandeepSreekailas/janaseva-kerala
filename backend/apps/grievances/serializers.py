@@ -320,6 +320,7 @@ class GrievanceCreateSerializer(serializers.ModelSerializer):
 class GrievanceListSerializer(serializers.ModelSerializer):
     """Compact serializer for grievance lists and dashboard overviews."""
     is_overdue = serializers.BooleanField(read_only=True)
+    assigned_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Grievance
@@ -334,8 +335,16 @@ class GrievanceListSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
             'is_overdue',
+            'assigned_at',
         ]
         read_only_fields = fields
+
+    def get_assigned_at(self, obj):
+        """Return the assignment timestamp of the active assignment, or creation timestamp."""
+        active_assignment = obj.assignments.filter(is_active=True).first()
+        if active_assignment:
+            return active_assignment.assigned_at
+        return obj.created_at
 
 
 class GrievanceDetailSerializer(serializers.ModelSerializer):

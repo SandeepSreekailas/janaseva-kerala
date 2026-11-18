@@ -209,9 +209,9 @@ export default function OfficerDashboard() {
             </div>
           ) : (
             <>
-              {/* Stat Cards Grid */}
+              {/* Stat Cards Grid - 5 Core Redressal Indicators */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* Total Assigned */}
+                {/* 1. Total Assigned */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -229,11 +229,11 @@ export default function OfficerDashboard() {
                   </div>
                 </div>
 
-                {/* Pending Action */}
+                {/* 2. Newly Assigned Cases */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Pending Action
+                      Newly Assigned
                     </span>
                     <div className="p-2.5 rounded-lg bg-amber-50 text-amber-600">
                       <Clock className="w-5 h-5" />
@@ -241,49 +241,35 @@ export default function OfficerDashboard() {
                   </div>
                   <div className="mt-3">
                     <span className="text-2xl sm:text-3xl font-extrabold text-amber-600">
-                      {data?.pending_action ?? 0}
+                      {data?.newly_assigned ?? ((data?.by_status?.['Under Review'] || 0) + (data?.by_status?.['Submitted'] || 0))}
                     </span>
-                    <p className="text-xs text-slate-500 mt-1">Awaiting field investigation</p>
+                    <p className="text-xs text-slate-500 mt-1">Awaiting investigation start</p>
                   </div>
                 </div>
 
-                {/* Overdue Cases */}
-                <div
-                  className={`bg-white p-5 rounded-xl border transition-shadow shadow-xs hover:shadow-md ${
-                    (data?.overdue ?? 0) > 0 ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Overdue Cases
-                    </span>
-                    <div
-                      className={`p-2.5 rounded-lg ${
-                        (data?.overdue ?? 0) > 0
-                          ? 'bg-red-100 text-red-600 animate-pulse'
-                          : 'bg-red-50 text-red-500'
-                      }`}
-                    >
-                      <AlertTriangle className="w-5 h-5" />
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <span
-                      className={`text-2xl sm:text-3xl font-extrabold ${
-                        (data?.overdue ?? 0) > 0 ? 'text-red-600' : 'text-slate-700'
-                      }`}
-                    >
-                      {data?.overdue ?? 0}
-                    </span>
-                    <p className="text-xs text-slate-500 mt-1">Breached SLA resolution time</p>
-                  </div>
-                </div>
-
-                {/* Pending Action Reports */}
+                {/* 3. Under Investigation */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      ATRs in Review
+                      Under Investigation
+                    </span>
+                    <div className="p-2.5 rounded-lg bg-sky-50 text-sky-600">
+                      <Activity className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-sky-600">
+                      {data?.under_investigation ?? (data?.by_status?.['In Progress'] || 0)}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-1">Active field operations</p>
+                  </div>
+                </div>
+
+                {/* 4. Reports Awaiting CMO Review */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Reports in Review
                     </span>
                     <div className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600">
                       <FileCheck className="w-5 h-5" />
@@ -293,15 +279,15 @@ export default function OfficerDashboard() {
                     <span className="text-2xl sm:text-3xl font-extrabold text-indigo-600">
                       {data?.pending_reports ?? 0}
                     </span>
-                    <p className="text-xs text-slate-500 mt-1">Awaiting CMO review & approval</p>
+                    <p className="text-xs text-slate-500 mt-1">ATRs submitted for CMO verification</p>
                   </div>
                 </div>
 
-                {/* Resolved */}
+                {/* 5. Resolved Cases */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Resolved
+                      Resolved Cases
                     </span>
                     <div className="p-2.5 rounded-lg bg-emerald-50 text-[#16865B]">
                       <CheckCircle2 className="w-5 h-5" />
@@ -311,10 +297,35 @@ export default function OfficerDashboard() {
                     <span className="text-2xl sm:text-3xl font-extrabold text-[#16865B]">
                       {data?.resolved ?? 0}
                     </span>
-                    <p className="text-xs text-slate-500 mt-1">Closed with citizen satisfaction</p>
+                    <p className="text-xs text-slate-500 mt-1">Closed after CMO approval</p>
                   </div>
                 </div>
               </div>
+
+              {/* Overdue SLA Notice Banner */}
+              {(data?.overdue ?? 0) > 0 && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-rose-100 text-rose-700">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-rose-900">
+                        {data.overdue} Assigned Case{data.overdue > 1 ? 's' : ''} Exceeded SLA Due Date
+                      </p>
+                      <p className="text-xs text-rose-700">
+                        Immediate departmental action and report submission required to avoid CMO escalation.
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    to="/officer/grievances?ordering=due_date"
+                    className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shrink-0"
+                  >
+                    View Overdue Cases
+                  </Link>
+                </div>
+              )}
 
               {/* Visual Charts Section */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -477,7 +488,7 @@ export default function OfficerDashboard() {
                           <th className="px-5 py-3.5">District</th>
                           <th className="px-5 py-3.5">Priority</th>
                           <th className="px-5 py-3.5">Status</th>
-                          <th className="px-5 py-3.5">Date Filed</th>
+                          <th className="px-5 py-3.5">Assignment Date</th>
                           <th className="px-5 py-3.5 text-right">Action</th>
                         </tr>
                       </thead>
@@ -531,7 +542,7 @@ export default function OfficerDashboard() {
                             </td>
 
                             <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500">
-                              {formatDate(item.created_at)}
+                              {formatDate(item.assigned_at || item.created_at)}
                             </td>
 
                             <td className="px-5 py-4 whitespace-nowrap text-right">
@@ -540,7 +551,7 @@ export default function OfficerDashboard() {
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#17365D] bg-slate-100 hover:bg-[#245A91] hover:text-white transition-all shadow-2xs"
                               >
                                 <Eye className="w-3.5 h-3.5" />
-                                <span>Inspect</span>
+                                <span>View Details</span>
                               </Link>
                             </td>
                           </tr>

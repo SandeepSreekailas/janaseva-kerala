@@ -211,6 +211,14 @@ export default function CMOGrievanceDetail() {
     return dept?.officers || [];
   }, [watchDepartmentId, departments]);
 
+  // Reset officer if department changes and officer doesn't belong to new department
+  useEffect(() => {
+    const currentOfficerId = watchAssign('officer_id');
+    if (currentOfficerId && !availableOfficers.some((o) => String(o.id) === String(currentOfficerId))) {
+      setAssignValue('officer_id', '');
+    }
+  }, [watchDepartmentId, availableOfficers, watchAssign, setAssignValue]);
+
   // Auto pre-fill department if AI suggestion matches
   const handleApplyAISuggestion = () => {
     if (!grievance?.ai_suggested_department) return;
@@ -994,10 +1002,12 @@ export default function CMOGrievanceDetail() {
                         </option>
                       ))}
                     </select>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      {watchDepartmentId && availableOfficers.length === 0
-                        ? 'No designated officers listed under this department. Case will route to departmental queue.'
-                        : 'Select a specific designated nodal officer or leave unassigned.'}
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {watchDepartmentId
+                        ? availableOfficers.length > 0
+                          ? `Select a designated officer (${availableOfficers.length} available) or assign to the general department pool.`
+                          : 'No officers found for this department. Case will route to general departmental queue.'
+                        : 'Select a target department above first to see eligible officers.'}
                     </p>
                   </div>
 

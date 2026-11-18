@@ -19,12 +19,12 @@ class DepartmentSerializerTestCase(TestCase):
 
     def test_department_serializer_all_fields(self):
         serializer = DepartmentSerializer(instance=self.dept)
-        expected_fields = {'id', 'name', 'code', 'description', 'contact_email', 'is_active', 'created_at'}
+        expected_fields = {'id', 'name', 'code', 'description', 'contact_email', 'is_active', 'created_at', 'officers'}
         self.assertEqual(set(serializer.data.keys()), expected_fields)
 
     def test_department_list_serializer_fields(self):
         serializer = DepartmentListSerializer(instance=self.dept)
-        expected_fields = {'id', 'name', 'code', 'is_active'}
+        expected_fields = {'id', 'name', 'code', 'is_active', 'officers'}
         self.assertEqual(set(serializer.data.keys()), expected_fields)
 
 
@@ -56,7 +56,7 @@ class DepartmentAPITestCase(TestCase):
         data = response.data['results'] if 'results' in response.data else response.data
         self.assertTrue(len(data) >= 1)
         first_item = data[0]
-        self.assertEqual(set(first_item.keys()), {'id', 'name', 'code', 'is_active'})
+        self.assertEqual(set(first_item.keys()), {'id', 'name', 'code', 'is_active', 'officers'})
 
     def test_public_can_retrieve_department(self):
         response = self.client.get(f'/api/departments/{self.dept.id}/')
