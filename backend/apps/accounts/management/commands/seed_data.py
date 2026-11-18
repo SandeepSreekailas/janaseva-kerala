@@ -24,7 +24,15 @@ from apps.enquiries.models import ContactEnquiry
 class Command(BaseCommand):
     help = 'Seed initial demonstration data for Janaseva Kerala grievance portal'
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--reset-passwords',
+            action='store_true',
+            help='Reset passwords for existing demo accounts to their default credentials',
+        )
+
     def handle(self, *args, **options):
+        reset_passwords = options.get('reset_passwords', False)
         self.stdout.write(self.style.NOTICE('Starting Janaseva Kerala demo data seeding...'))
 
         # ---------------------------------------------------------------------
@@ -111,15 +119,23 @@ class Command(BaseCommand):
                 'full_name': 'Chief Minister Office Administrator',
                 'role': User.Role.CMO_ADMIN,
                 'mobile': '9847000001',
+                'designation': 'Chief Minister Office Administrator',
+                'employee_id': 'CMO-001',
                 'is_staff': True,
                 'is_superuser': True,
                 'is_active': True,
             }
         )
-        cmo_user.set_password(cmo_password)
+        if created or reset_passwords:
+            cmo_user.set_password(cmo_password)
         cmo_user.role = User.Role.CMO_ADMIN
         cmo_user.is_staff = True
         cmo_user.is_superuser = True
+        cmo_user.is_active = True
+        if not cmo_user.designation:
+            cmo_user.designation = 'Chief Minister Office Administrator'
+        if not cmo_user.employee_id:
+            cmo_user.employee_id = 'CMO-001'
         cmo_user.save()
         status_text = 'Created' if created else 'Updated'
         self.stdout.write(f"  [{status_text}] CMO Admin: {cmo_user.email} (role={cmo_user.role})")
@@ -131,48 +147,64 @@ class Command(BaseCommand):
                 'email': 'officer.pwd@janaseva.kerala.gov.in',
                 'full_name': 'Er. Rajesh Kumar',
                 'mobile': '9847100001',
+                'designation': 'Executive Engineer (Roads)',
+                'employee_id': 'PWD-OFF-001',
             },
             {
                 'code': 'HLT',
                 'email': 'officer.hlt@janaseva.kerala.gov.in',
                 'full_name': 'Dr. Ananya Nair',
                 'mobile': '9847100002',
+                'designation': 'Chief Medical Officer',
+                'employee_id': 'HLT-OFF-001',
             },
             {
                 'code': 'EDU',
                 'email': 'officer.edu@janaseva.kerala.gov.in',
                 'full_name': 'Prof. Suresh Menon',
                 'mobile': '9847100003',
+                'designation': 'District Education Officer',
+                'employee_id': 'EDU-OFF-001',
             },
             {
                 'code': 'LSG',
                 'email': 'officer.lsg@janaseva.kerala.gov.in',
                 'full_name': 'Smt. Bindu Thomas',
                 'mobile': '9847100004',
+                'designation': 'Joint Director of Panchayats',
+                'employee_id': 'LSG-OFF-001',
             },
             {
                 'code': 'WRD',
                 'email': 'officer.wrd@janaseva.kerala.gov.in',
                 'full_name': 'Er. Manoj Pillai',
                 'mobile': '9847100005',
+                'designation': 'Assistant Executive Engineer (Water)',
+                'employee_id': 'WRD-OFF-001',
             },
             {
                 'code': 'KSEB',
                 'email': 'officer.kseb@janaseva.kerala.gov.in',
                 'full_name': 'Er. Deepa Varma',
                 'mobile': '9847100006',
+                'designation': 'Assistant Executive Engineer (Electrical)',
+                'employee_id': 'KSEB-OFF-001',
             },
             {
                 'code': 'TRN',
                 'email': 'officer.trn@janaseva.kerala.gov.in',
                 'full_name': 'Shri. Arun Chandran',
                 'mobile': '9847100007',
+                'designation': 'Regional Transport Officer',
+                'employee_id': 'TRN-OFF-001',
             },
             {
                 'code': 'REV',
                 'email': 'officer.rev@janaseva.kerala.gov.in',
                 'full_name': 'Shri. George Joseph',
                 'mobile': '9847100008',
+                'designation': 'Tahsildar (Land Records)',
+                'employee_id': 'REV-OFF-001',
             },
         ]
 
@@ -187,14 +219,22 @@ class Command(BaseCommand):
                     'role': User.Role.OFFICER,
                     'department': dept,
                     'mobile': off_data['mobile'],
+                    'designation': off_data.get('designation', ''),
+                    'employee_id': off_data.get('employee_id', ''),
                     'is_staff': True,
                     'is_active': True,
                 }
             )
-            officer.set_password(officer_password)
+            if created or reset_passwords:
+                officer.set_password(officer_password)
             officer.department = dept
             officer.role = User.Role.OFFICER
             officer.is_staff = True
+            officer.is_active = True
+            if not officer.designation and off_data.get('designation'):
+                officer.designation = off_data['designation']
+            if not officer.employee_id and off_data.get('employee_id'):
+                officer.employee_id = off_data['employee_id']
             officer.save()
             officers_by_code[dept.code] = officer
             status_text = 'Created' if created else 'Updated'
@@ -207,12 +247,14 @@ class Command(BaseCommand):
                 'password': 'citizen123',
                 'full_name': 'Kavitha R Nair',
                 'mobile': '9847200001',
+                'address': 'House No. 42, Kowdiar, Thiruvananthapuram, Kerala - 695003',
             },
             {
                 'email': 'citizen2@example.com',
                 'password': 'citizen123',
                 'full_name': 'Rahul K Varma',
                 'mobile': '9847200002',
+                'address': 'Flat 3B, Silver Palms, Mavoor Road, Kozhikode, Kerala - 673004',
             },
         ]
 
@@ -224,12 +266,17 @@ class Command(BaseCommand):
                     'full_name': c_data['full_name'],
                     'role': User.Role.CITIZEN,
                     'mobile': c_data['mobile'],
+                    'address': c_data.get('address', ''),
                     'is_staff': False,
                     'is_active': True,
                 }
             )
-            citizen.set_password(c_data['password'])
+            if created or reset_passwords:
+                citizen.set_password(c_data['password'])
             citizen.role = User.Role.CITIZEN
+            citizen.is_active = True
+            if not citizen.address and c_data.get('address'):
+                citizen.address = c_data['address']
             citizen.save()
             citizens.append(citizen)
             status_text = 'Created' if created else 'Updated'

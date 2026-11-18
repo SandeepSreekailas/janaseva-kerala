@@ -83,14 +83,27 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database Configuration: Neon PostgreSQL support with SQLite development fallback
-DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
 if DATABASE_URL:
+    is_neon_pooler = '-pooler' in DATABASE_URL
+    ssl_require = os.getenv('DB_SSL_REQUIRE', 'True').lower() in ('true', '1', 'yes')
+    # Use conn_max_age=0 for connection poolers (pgBouncer transaction mode) or fallback to 600
+    conn_max_age_default = '0' if is_neon_pooler else '600'
+    conn_max_age = int(os.getenv('DB_CONN_MAX_AGE', conn_max_age_default))
+
+    db_config = dj_database_url.config(
+        default=DATABASE_URL,
+        conn_max_age=conn_max_age,
+        conn_health_checks=True,
+        ssl_require=ssl_require,
+    )
+
+    # Neon transaction poolers do not support PostgreSQL server-side named cursors
+    if is_neon_pooler or os.getenv('DISABLE_SERVER_SIDE_CURSORS', '').lower() in ('true', '1', 'yes'):
+        db_config['DISABLE_SERVER_SIDE_CURSORS'] = True
+
     DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
+        'default': db_config
     }
 else:
     DATABASES = {
